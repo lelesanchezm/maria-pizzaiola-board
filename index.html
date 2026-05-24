@@ -5,6 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>María Pizzaiola — Content Board</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyADLoBLMbSeM59De0vCzBFaOuPysQzAND8",
+    authDomain: "maria-pizzaiola-board.firebaseapp.com",
+    projectId: "maria-pizzaiola-board",
+    storageBucket: "maria-pizzaiola-board.firebasestorage.app",
+    messagingSenderId: "968678855514",
+    appId: "1:968678855514:web:1df55bf223f460b359d963"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Save all data to Firestore
+  window.fbSave = async function(data) {
+    try {
+      await setDoc(doc(db, "board", "main"), data);
+    } catch(e) { console.error("Firebase save error:", e); }
+  };
+
+  // Load all data from Firestore
+  window.fbLoad = async function() {
+    try {
+      const snap = await getDoc(doc(db, "board", "main"));
+      if (snap.exists()) return snap.data();
+    } catch(e) { console.error("Firebase load error:", e); }
+    return null;
+  };
+
+  // Listen for real-time changes
+  window.fbListen = function(callback) {
+    return onSnapshot(doc(db, "board", "main"), (snap) => {
+      if (snap.exists()) callback(snap.data());
+    });
+  };
+
+  window.firebaseReady = true;
+  document.dispatchEvent(new Event('firebaseReady'));
+</script>
 <style>
 :root{
   --cr:#FAF8F2;--cr2:#F3EDD8;--cr3:#E8DFC0;
@@ -605,13 +648,21 @@ function load(){
 }
 
 function save(){
+  // Save to localStorage as backup
   localStorage.setItem('mpf_posts',JSON.stringify(posts));
   localStorage.setItem('mpf_ideas',JSON.stringify(ideas));
   localStorage.setItem('mpf_notas',JSON.stringify(notas));
   localStorage.setItem('mpf_events',JSON.stringify(events));
   localStorage.setItem('mpf_evtypes',JSON.stringify(evTypes));
   localStorage.setItem('mpf_cols',JSON.stringify(columns));
-  document.getElementById('svi').textContent='Guardado '+new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+  // Save to Firebase
+  if(window.fbSave){
+    window.fbSave({posts,ideas,notas,events,evTypes,columns,pautas})
+      .then(()=>{document.getElementById('svi').textContent='Guardado '+new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});})
+      .catch(()=>{document.getElementById('svi').textContent='Guardado local';});
+  } else {
+    document.getElementById('svi').textContent='Guardado '+new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+  }
 }
 
 function renderAll(){rStats();rCM();rG();rCal();rIdeas();rNotas();}
@@ -902,7 +953,7 @@ function DEF_PAUTAS(){return[
   ],link:'',notas:'Luz natural. Sin crew. Que lo grabe cuando se sienta lista.'},
 ];}
 function loadPautas(){try{const s=JSON.parse(localStorage.getItem('mpf_pautas'));pautas=s&&s.length?s:DEF_PAUTAS();}catch{pautas=DEF_PAUTAS();}}
-function savePautas(){localStorage.setItem('mpf_pautas',JSON.stringify(pautas));document.getElementById('svi').textContent='Guardado '+new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});rCal();}
+function savePautas(){localStorage.setItem('mpf_pautas',JSON.stringify(pautas));save();rCal();}
 
 function rPautas(){
   const grid=document.getElementById('pautas-grid');if(!grid)return;
@@ -1048,7 +1099,41 @@ function sw(tab,btn){
   if(tab==='pautas')rPautas();
 }
 
-document.addEventListener('DOMContentLoaded',()=>{load();loadPautas();renderAll();});
+document.addEventListener('DOMContentLoaded',()=>{
+  // Try Firebase first, fall back to localStorage
+  const initApp = async () => {
+    if(window.fbLoad) {
+      const fbData = await window.fbLoad();
+      if(fbData && fbData.posts && fbData.posts.length) {
+        posts = fbData.posts;
+        ideas = fbData.ideas && fbData.ideas.length ? fbData.ideas : DEF_IDEAS();
+        notas = fbData.notas && fbData.notas.length ? fbData.notas : DEF_NOTAS();
+        events = fbData.events || [];
+        evTypes = fbData.evTypes && fbData.evTypes.length ? fbData.evTypes : JSON.parse(JSON.stringify(DEF_EV_TYPES));
+        columns = fbData.columns && fbData.columns.length ? fbData.columns : JSON.parse(JSON.stringify(ALL_COLS));
+        pautas = fbData.pautas && fbData.pautas.length ? fbData.pautas : DEF_PAUTAS();
+        renderAll();
+        // Listen for real-time updates
+        window.fbListen((data) => {
+          if(!data) return;
+          posts = data.posts || posts;
+          ideas = data.ideas || ideas;
+          notas = data.notas || notas;
+          events = data.events || events;
+          evTypes = data.evTypes || evTypes;
+          columns = data.columns || columns;
+          pautas = data.pautas || pautas;
+          renderAll();
+        });
+        return;
+      }
+    }
+    // Fall back to localStorage + defaults
+    load();loadPautas();renderAll();
+  };
+  if(window.firebaseReady) { initApp(); }
+  else { document.addEventListener('firebaseReady', initApp); setTimeout(()=>{ if(!window.firebaseReady){load();loadPautas();renderAll();} }, 3000); }
+});
 
 </script>
 </body>
