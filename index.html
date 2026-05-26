@@ -6,25 +6,32 @@
 <title>María Pizzaiola — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
-<!-- Firebase -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
-  const firebaseConfig = {
-    apiKey: "AIzaSyADLoBLMbSeM59De0vCzBFaOuPysQzAND8",
-    authDomain: "maria-pizzaiola-board.firebaseapp.com",
-    projectId: "maria-pizzaiola-board",
-    storageBucket: "maria-pizzaiola-board.firebasestorage.app",
-    messagingSenderId: "968678855514",
-    appId: "1:968678855514:web:1df55bf223f460b359d963"
-  };
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  window.fbSave = async (data) => { try { await setDoc(doc(db,"board","main"), data); } catch(e){console.error(e);} };
-  window.fbLoad = async () => { try { const s = await getDoc(doc(db,"board","main")); if(s.exists()) return s.data(); } catch(e){console.error(e);} return null; };
-  window.fbListen = (cb) => onSnapshot(doc(db,"board","main"), s => { if(s.exists()) cb(s.data()); });
-  window.firebaseReady = true;
-  document.dispatchEvent(new Event('firebaseReady'));
+<!-- Firebase compat -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js" defer></script>
+<script defer>
+  function initFirebase() {
+    try {
+      const firebaseConfig = {
+        apiKey: "AIzaSyADLoBLMbSeM59De0vCzBFaOuPysQzAND8",
+        authDomain: "maria-pizzaiola-board.firebaseapp.com",
+        projectId: "maria-pizzaiola-board",
+        storageBucket: "maria-pizzaiola-board.firebasestorage.app",
+        messagingSenderId: "968678855514",
+        appId: "1:968678855514:web:1df55bf223f460b359d963"
+      };
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+      window.fbSave = async (data) => { try { await db.collection("board").doc("main").set(data); } catch(e){console.error(e);} };
+      window.fbLoad = async () => { try { const s = await db.collection("board").doc("main").get(); if(s.exists) return s.data(); } catch(e){console.error(e);} return null; };
+      window.fbListen = (cb) => db.collection("board").doc("main").onSnapshot(s => { if(s.exists) cb(s.data()); });
+      window.firebaseReady = true;
+      document.dispatchEvent(new Event('firebaseReady'));
+    } catch(e) {
+      console.error('Firebase init error:', e);
+    }
+  }
+  document.addEventListener('DOMContentLoaded', initFirebase);
 </script>
 
 <style>
